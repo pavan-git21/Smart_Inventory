@@ -1,52 +1,69 @@
 import { Request, Response } from "express";
 import { pool } from "../config/db";
 
-export const getReports = async (_: Request, res: Response): Promise<void> => {
+export const getReports = async (req: Request, res: Response): Promise<void> => {
   try {
-    const topSelling = await pool.query(`
-      SELECT p.id, p.name, p.category, p.price,
-             SUM(s.quantity) as total_sold,
-             SUM(s.quantity * p.price) as total_revenue
-      FROM sales s
-      JOIN products p ON p.id = s.product_id
-      GROUP BY p.id, p.name, p.category, p.price
-      ORDER BY total_sold DESC
-      LIMIT 5
-    `);
+    const userId = (req as any).user.id;
 
-    const lowStock = await pool.query(
-      "SELECT * FROM products WHERE quantity <= 5 ORDER BY quantity ASC"
+    const topSelling = await pool.query(
+      `SELECT p.id, p.name, p.category, p.price,
+              SUM(s.quantity) as total_sold,
+              SUM(s.quantity * p.price) as total_revenue
+       FROM sales s
+       JOIN products p ON p.id = s.product_id
+       WHERE s.user_id=$1
+       GROUP BY p.id, p.name, p.category, p.price
+       ORDER BY total_sold DESC
+       LIMIT 5`,
+      [userId]
     );
 
-    const totalRevenue = await pool.query(`
-      SELECT COALESCE(SUM(s.quantity * p.price), 0) as total
-      FROM sales s
-      JOIN products p ON p.id = s.product_id
-    `);
+    const lowStock = await pool.query(
+      "SELECT * FROM products WHERE user_id=$1 AND quantity <= 5 ORDER BY quantity ASC",
+      [userId]
+    );
 
-    const totalSales = await pool.query("SELECT COUNT(*) as count FROM sales");
+    const totalRevenue = await pool.query(
+      `SELECT COALESCE(SUM(s.quantity * p.price), 0) as total
+       FROM sales s
+       JOIN products p ON p.id = s.product_id
+       WHERE s.user_id=$1`,
+      [userId]
+    );
 
-    const totalProducts = await pool.query("SELECT COUNT(*) as count FROM products");
+    const totalSales = await pool.query(
+      "SELECT COUNT(*) as count FROM sales WHERE user_id=$1",
+      [userId]
+    );
 
-    const recentSales = await pool.query(`
-      SELECT s.id, s.quantity, s.created_at,
-             p.name as product_name, p.price,
-             (s.quantity * p.price) as revenue
-      FROM sales s
-      JOIN products p ON p.id = s.product_id
-      ORDER BY s.created_at DESC
-      LIMIT 10
-    `);
+    const totalProducts = await pool.query(
+      "SELECT COUNT(*) as count FROM products WHERE user_id=$1",
+      [userId]
+    );
 
-    const categoryBreakdown = await pool.query(`
-      SELECT p.category,
-             SUM(s.quantity) as total_sold,
-             SUM(s.quantity * p.price) as revenue
-      FROM sales s
-      JOIN products p ON p.id = s.product_id
-      GROUP BY p.category
-      ORDER BY revenue DESC
-    `);
+    const recentSales = await pool.query(
+      `SELECT s.id, s.quantity, s.created_at,
+              p.name as product_name, p.price,
+              (s.quantity * p.price) as revenue
+       FROM sales s
+       JOIN products p ON p.id = s.product_id
+       WHERE s.user_id=$1
+       ORDER BY s.created_at DESC
+       LIMIT 10`,
+      [userId]
+    );
+
+    const categoryBreakdown = await pool.query(
+      `SELECT p.category,
+              SUM(s.quantity) as total_sold,
+              SUM(s.quantity * p.price) as revenue
+       FROM sales s
+       JOIN products p ON p.id = s.product_id
+       WHERE s.user_id=$1
+       GROUP BY p.category
+       ORDER BY revenue DESC`,
+      [userId]
+    );
 
     res.json({
       topSelling: topSelling.rows,
