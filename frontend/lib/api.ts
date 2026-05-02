@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "https://smart-inventory-3.onrender.com/";
 
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
